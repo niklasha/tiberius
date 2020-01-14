@@ -462,8 +462,15 @@ impl<I: BoxableIo, F: Future<Item = I, Error = Error> + Send> Future for Connect
                                     };
                                 }
                             }
-                            let header = try_ready!(ctx.transport.inner.next_packet());
-                            assert_eq!(header.ty, PacketType::TabularResult);
+                            let token = try_ready!(ctx.transport.next_token());
+                            match token {
+                                Some(TdsResponseToken::LoginAck(login_ack)) => {
+//                                    eprintln!("login_ack {:?}", login_ack);
+                                    let mut trans = &mut ctx.transport;
+                                    trans.set_feature_level(login_ack.tds_version);
+                                }
+                                _ => (),
+                            }
                             SqlConnectionLoginState::TokenStreamRecv
                         }
                         SqlConnectionLoginState::TokenStreamRecv => {

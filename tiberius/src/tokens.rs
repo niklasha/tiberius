@@ -194,8 +194,13 @@ impl<I: Io> ParseToken<I> for TokenInfo {
             message: try_ready!(trans.inner.read_varchar::<u16>(false)),
             server: try_ready!(trans.inner.read_varchar::<u8>(false)),
             procedure: try_ready!(trans.inner.read_varchar::<u8>(false)),
-            line: trans.inner.read_u32::<LittleEndian>()?,
+            line: if (trans.feature_level.unwrap_or(FeatureLevel::SqlServer2000) as u32) < FeatureLevel::SqlServer2008 as u32 {
+                trans.inner.read_u16::<LittleEndian>()? as u32
+            } else {
+                trans.inner.read_u32::<LittleEndian>()?
+            },
         };
+//        eprintln!("message {:?}", token.message);
         Ok(Async::Ready(TdsResponseToken::Info(token)))
     }
 }
@@ -222,7 +227,7 @@ pub struct TokenLoginAck {
     ///    requested SQL_DFLT, SQL_TSQL will be used)
     /// 1: SQL_TSQL (TSQL is accepted)
     interface: u8,
-    tds_version: FeatureLevel,
+    pub tds_version: FeatureLevel,
     prog_name: Str,
     /// major.minor.buildhigh.buildlow
     version: u32,
@@ -266,7 +271,11 @@ impl<I: Io> ParseToken<I> for TokenDone {
             status: DoneStatus::from_bits(trans.inner.read_u16::<LittleEndian>()?)
                 .ok_or(Error::Protocol("done(variant): invalid status".into()))?,
             cur_cmd: trans.inner.read_u16::<LittleEndian>()?,
-            done_rows: trans.inner.read_u64::<LittleEndian>()?,
+            done_rows: if (trans.feature_level.unwrap_or(FeatureLevel::SqlServer2000) as u32) < FeatureLevel::SqlServer2008 as u32 {
+                trans.inner.read_u32::<LittleEndian>()? as u64
+            } else {
+                trans.inner.read_u64::<LittleEndian>()?
+            },
         };
         Ok(Async::Ready(TdsResponseToken::Done(token)))
     }
@@ -309,7 +318,11 @@ pub struct MetaDataColumn {
 
 impl BaseMetaDataColumn {
     fn parse<I: Io>(trans: &mut TdsTransport<I>) -> Poll<BaseMetaDataColumn, Error> {
-        let _user_ty = trans.inner.read_u32::<LittleEndian>()?;
+        let _user_ty = if (trans.feature_level.unwrap_or(FeatureLevel::SqlServer2000) as u32) < FeatureLevel::SqlServer2008 as u32 {
+            trans.inner.read_u16::<LittleEndian>()? as u32
+        } else {
+            trans.inner.read_u32::<LittleEndian>()?
+        };
 
         let raw_flags = trans.inner.read_u16::<LittleEndian>()?;
         let flags = ColmetaDataFlags::from_bits(raw_flags).unwrap();
@@ -519,7 +532,11 @@ impl<I: Io> ParseToken<I> for TokenError {
             message: try_ready!(trans.inner.read_varchar::<u16>(false)),
             server: try_ready!(trans.inner.read_varchar::<u8>(false)),
             procedure: try_ready!(trans.inner.read_varchar::<u8>(false)),
-            line: trans.inner.read_u32::<LittleEndian>()?,
+            line: if (trans.feature_level.unwrap_or(FeatureLevel::SqlServer2000) as u32) < FeatureLevel::SqlServer2008 as u32 {
+                trans.inner.read_u16::<LittleEndian>()? as u32
+            } else {
+                trans.inner.read_u32::<LittleEndian>()?
+            },
         };
         Ok(Async::Ready(TdsResponseToken::Error(token)))
     }

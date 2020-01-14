@@ -251,6 +251,7 @@ pub struct TdsTransport<I: Io> {
     pub state_tracked: bool,
     pub transaction: u64,
     reinject_token: Option<TdsResponseToken>,
+    pub feature_level: Option<protocol::FeatureLevel>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -358,6 +359,7 @@ impl<I: Io> TdsTransport<I> {
             state_tracked: false,
             transaction: 0,
             reinject_token: None,
+            feature_level: None,
         }
     }
 
@@ -385,6 +387,7 @@ impl<I: Io> TdsTransport<I> {
             // read a token
             if self.read_state.is_none() {
                 let raw_token = self.inner.read_u8()?;
+//                eprintln!("raw_token {}", raw_token);
                 let token = Tokens::from_u8(raw_token);
 
                 self.commit_read_state(match token {
@@ -497,6 +500,10 @@ impl<I: Io> TdsTransport<I> {
                 }
             }
         }
+    }
+
+    pub fn set_feature_level(&mut self, feature_level: protocol::FeatureLevel) {
+        self.feature_level = Some(feature_level);
     }
 }
 

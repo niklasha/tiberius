@@ -250,6 +250,8 @@ impl<'a> UnserializeMessage<PreloginMessage> for &'a [u8] {
                         format!("invalid encryption value: {}", encrypt).into()
                     ))?;
                 }
+                // instance validity
+                2 => (),
                 3 => debug_assert_eq!(length, 0), // threadid
                 4 => debug_assert_eq!(length, 1), // mars
                 _ => panic!("unsupported prelogin token: {}", token),
