@@ -5,7 +5,7 @@ use bytes::Bytes;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use futures::{Async, Poll};
 use transport::{Io, NoLength, PrimitiveWrites, ReadState, Str, TdsTransport};
-use types::{ColumnData, TypeInfo};
+use types::{ColumnData, TypeInfo, VarLenType};
 use protocol::{self, FeatureLevel, PacketHeader, PacketStatus, PacketType, PacketWriter};
 use {FromUint, Error, Result};
 
@@ -328,7 +328,22 @@ impl BaseMetaDataColumn {
         let flags = ColmetaDataFlags::from_bits(raw_flags).unwrap();
 
         let ty = try_ready!(TypeInfo::parse(trans));
-        // TODO: for type={text, ntext, and image} TABLENAME
+        match ty {
+            TypeInfo::VarLenSized(ref ty, _, _) => match *ty {
+                VarLenType::Text | VarLenType::NText | VarLenType::Image => {
+                    let n = if (trans.feature_level.unwrap_or(FeatureLevel::SqlServer2000) as u32) < FeatureLevel::SqlServer2005 as u32 {
+                        1
+                    } else {
+                        trans.inner.read_u8()?
+                    };
+                    for _ in 0..n {
+                        trans.inner.read_varchar::<u16>(false)?;
+                    }
+                }
+                _ => ()
+            }
+            _ => ()
+        }
 
         /*// CryptoMetaData
         let cmd_ordinal = try!(self.read_u16::<LittleEndian>());

@@ -122,13 +122,14 @@ uint_enum! {
         Image = 0x22,
         NText = 0x63,
         // not supported yet
-        SSVariant = 0x62, // legacy types (not supported since post-7.2):
-                        // Char = 0x2F,
-                        // VarChar = 0x27,
-                        // Binary = 0x2D,
-                        // VarBinary = 0x25,
-                        // Numeric = 0x3F,
-                        // Decimal = 0x37
+        SSVariant = 0x62,
+        // legacy types (not supported since post-7.2):
+        // Char = 0x2F,
+        // VarChar = 0x27,
+        // Binary = 0x2D,
+        // VarBinary = 0x25,
+        // Numeric = 0x3F,
+        // Decimal = 0x37
     }
 }
 
@@ -253,14 +254,17 @@ impl TypeInfo {
                 VarLenType::Datetimen |
                 VarLenType::Timen |
                 VarLenType::Datetime2 => trans.inner.read_u8()? as usize,
-                VarLenType::NChar | VarLenType::NVarchar | VarLenType::BigVarChar | VarLenType::BigBinary => {
+                VarLenType::NChar | VarLenType::NVarchar | VarLenType::BigChar | VarLenType::BigVarChar | VarLenType::BigBinary | VarLenType::BigVarBin => {
                     trans.inner.read_u16::<LittleEndian>()? as usize
                 }
+                VarLenType::SSVariant | VarLenType::Text | VarLenType::NText | VarLenType::Image | VarLenType::Xml => {
+                    trans.inner.read_u32::<LittleEndian>()? as usize
+                }
                 VarLenType::Daten => 3,
-                _ => unimplemented!(),
+                _ => unimplemented!()
             };
             let collation = match ty {
-                VarLenType::NChar | VarLenType::NVarchar | VarLenType::BigVarChar => Some(Collation {
+                VarLenType::NChar | VarLenType::NVarchar | VarLenType::BigChar | VarLenType::BigVarChar | VarLenType::Text | VarLenType::NText => Some(Collation {
                     info: trans.inner.read_u32::<LittleEndian>()?,
                     sort_id: trans.inner.read_u8()?,
                 }),
@@ -737,6 +741,7 @@ impl<'a> ToSql for &'a str {
     fn to_sql(&self) -> &'static str {
         match self.len() {
             0...4000 => "NVARCHAR(4000)",
+            // XXX pre 7.2 does not have NVARCHAR(MAX)
             4001...MAX_NVARCHAR_SIZE => "NVARCHAR(MAX)",
             _ => "NTEXT",
         }
